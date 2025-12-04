@@ -79,10 +79,19 @@ function addTodo() {
 
 <style scoped>
 .add-todo-form {
-  margin-bottom: 16px;
-  border-radius: 12px;
+  margin-bottom: 20px;
+  border-radius: 18px;
   background: white;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+
+.add-todo-form:focus-within {
+  box-shadow: 0 4px 20px rgba(0, 122, 255, 0.15);
+  border-color: rgba(0, 122, 255, 0.2);
+  transform: translateY(-1px);
 }
 
 .input-container {

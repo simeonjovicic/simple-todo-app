@@ -46,6 +46,44 @@ import '@ionic/vue/css/palettes/dark.system.css';
 /* Theme variables */
 import './theme/variables.css';
 
+/* Global styles to hide scrollbars but keep scrollability */
+const style = document.createElement('style');
+style.textContent = `
+  /* Hide scrollbars on all scrollable containers */
+  ion-content .inner-scroll,
+  ion-content .scroll-content,
+  .inner-scroll,
+  .scroll-content {
+    scrollbar-width: none !important; /* Firefox */
+    -ms-overflow-style: none !important; /* IE and Edge */
+    overflow-y: auto !important; /* Keep scrolling enabled */
+  }
+  
+  /* Hide scrollbar for webkit browsers */
+  ion-content .inner-scroll::-webkit-scrollbar,
+  ion-content .scroll-content::-webkit-scrollbar,
+  .inner-scroll::-webkit-scrollbar,
+  .scroll-content::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    background: transparent !important;
+  }
+  
+  /* Also target the shadow DOM scroll container */
+  ion-content::part(scroll) {
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+  }
+  
+  ion-content::part(scroll)::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+`;
+document.head.appendChild(style);
+
 const app = createApp(App)
   .use(IonicVue)
   .use(router);

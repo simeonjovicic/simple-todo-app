@@ -7,6 +7,9 @@
     </ion-header>
 
     <ion-content :fullscreen="true" class="settings-content">
+      <ion-refresher slot="fixed" @ionRefresh="handleRefresh">
+        <ion-refresher-content></ion-refresher-content>
+      </ion-refresher>
       <div class="settings-container">
         <!-- Notification Settings -->
         <div class="settings-section">
@@ -111,6 +114,8 @@ import {
   IonInput,
   IonButton,
   IonIcon,
+  IonRefresher,
+  IonRefresherContent,
   toastController
 } from '@ionic/vue';
 import { addOutline, closeOutline } from 'ionicons/icons';
@@ -201,6 +206,12 @@ async function resyncNotifications() {
     });
     await toast.present();
   }
+}
+
+async function handleRefresh(event: CustomEvent) {
+  // Refresh settings from localStorage
+  localSettings.value = { daysBefore: [...settings.value.daysBefore] };
+  (event.target as HTMLIonRefresherElement).complete();
 }
 </script>
 

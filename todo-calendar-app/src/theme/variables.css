@@ -33,6 +33,26 @@ body {
   transition: background-color 0.2s ease, color 0.2s ease, opacity 0.2s ease;
 }
 
+/* Hide scrollbars globally but keep scrollability */
+ion-content {
+  --overflow: auto;
+}
+
+/* Hide scrollbar for webkit browsers (Chrome, Safari, Edge) */
+ion-content .inner-scroll,
+ion-content .scroll-content {
+  scrollbar-width: none !important; /* Firefox */
+  -ms-overflow-style: none !important; /* IE and Edge */
+}
+
+ion-content .inner-scroll::-webkit-scrollbar,
+ion-content .scroll-content::-webkit-scrollbar {
+  display: none !important; /* Chrome, Safari, Opera */
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+}
+
 /* Dark Mode */
 .dark {
   --ion-background-color: #000000;

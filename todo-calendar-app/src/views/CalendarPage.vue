@@ -15,6 +15,9 @@
     </ion-header>
 
     <ion-content :fullscreen="true" class="calendar-content">
+      <ion-refresher slot="fixed" @ionRefresh="handleRefresh">
+        <ion-refresher-content></ion-refresher-content>
+      </ion-refresher>
       <div class="calendar-page-container">
         <!-- Calendar View (Collapsible) -->
         <div class="calendar-section">
@@ -210,7 +213,9 @@ import {
   IonPopover,
   IonList,
   IonItem,
-  IonLabel
+  IonLabel,
+  IonRefresher,
+  IonRefresherContent
 } from '@ionic/vue';
 import {
   addOutline,
@@ -490,6 +495,12 @@ function openSubjectFilter(event: Event) {
 function selectSubject(subject: string) {
   selectedSubject.value = subject;
   showSubjectFilter.value = false;
+}
+
+async function handleRefresh(event: CustomEvent) {
+  await loadExams();
+  await syncNotifications();
+  (event.target as HTMLIonRefresherElement).complete();
 }
 
 onMounted(async () => {
