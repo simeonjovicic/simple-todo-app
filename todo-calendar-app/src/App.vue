@@ -11,14 +11,27 @@
           <ion-icon :icon="calendarOutline"></ion-icon>
           <ion-label>Calendar</ion-label>
         </ion-tab-button>
+        <ion-tab-button tab="settings" href="/settings">
+          <ion-icon :icon="settingsOutline"></ion-icon>
+          <ion-label>Settings</ion-label>
+        </ion-tab-button>
       </ion-tab-bar>
     </ion-tabs>
   </ion-app>
 </template>
 
 <script setup lang="ts">
+import { onMounted } from 'vue';
 import { IonApp, IonRouterOutlet, IonTabs, IonTabBar, IonTabButton, IonIcon, IonLabel } from '@ionic/vue';
-import { listOutline, calendarOutline } from 'ionicons/icons';
+import { listOutline, calendarOutline, settingsOutline } from 'ionicons/icons';
+import { useDarkMode } from './composables/useDarkMode';
+
+// Initialize dark mode
+const { isDark } = useDarkMode();
+
+onMounted(() => {
+  // Theme is applied in the composable
+});
 </script>
 
 <style>

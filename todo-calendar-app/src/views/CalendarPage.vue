@@ -4,6 +4,9 @@
       <ion-toolbar>
         <ion-title>Calendar</ion-title>
         <ion-buttons slot="end">
+          <ion-button @click="toggleDarkMode">
+            <ion-icon :icon="isDark ? sunnyOutline : moonOutline" slot="icon-only"></ion-icon>
+          </ion-button>
           <ion-button @click="showAddExam = true">
             <ion-icon :icon="addOutline" slot="icon-only"></ion-icon>
           </ion-button>
@@ -33,10 +36,21 @@
 
         <!-- Upcoming Exams List -->
         <div v-if="upcomingExams.length > 0" class="exams-section">
-          <h3 class="section-title">Upcoming Exams</h3>
+          <div class="section-header">
+            <h3 class="section-title">Upcoming Exams</h3>
+            <ion-button
+              id="filter-button"
+              fill="outline"
+              @click="openSubjectFilter"
+              class="filter-button"
+            >
+              <ion-icon :icon="filterOutline" slot="start"></ion-icon>
+              {{ selectedSubject || 'All subjects' }}
+            </ion-button>
+          </div>
           <div class="exams-list">
             <div
-              v-for="exam in upcomingExams"
+              v-for="exam in filteredExams"
               :key="exam.id"
               class="exam-card"
             >
@@ -107,6 +121,43 @@
         </div>
       </div>
 
+      <!-- Subject Filter Popover -->
+      <ion-popover 
+        :is-open="showSubjectFilter" 
+        :event="filterEvent"
+        @didDismiss="showSubjectFilter = false"
+        :show-backdrop="true"
+      >
+        <ion-content>
+          <div class="filter-popover-content">
+            <div class="filter-popover-header">
+              <h3>Filter by Subject</h3>
+            </div>
+            <ion-list>
+              <ion-item button @click="selectSubject('')" :class="{ 'selected': !selectedSubject }" lines="none">
+                <ion-label>
+                  <h2>All subjects</h2>
+                </ion-label>
+                <ion-icon v-if="!selectedSubject" :icon="checkmarkOutline" slot="end" color="primary"></ion-icon>
+              </ion-item>
+              <ion-item 
+                v-for="subject in uniqueSubjects" 
+                :key="subject"
+                button 
+                @click="selectSubject(subject)"
+                :class="{ 'selected': selectedSubject === subject }"
+                lines="none"
+              >
+                <ion-label>
+                  <h2>{{ subject }}</h2>
+                </ion-label>
+                <ion-icon v-if="selectedSubject === subject" :icon="checkmarkOutline" slot="end" color="primary"></ion-icon>
+              </ion-item>
+            </ion-list>
+          </div>
+        </ion-content>
+      </ion-popover>
+
       <!-- Add/Edit Exam Modal -->
       <ion-modal :is-open="showAddExam" @didDismiss="closeExamForm">
         <ion-header>
@@ -146,7 +197,11 @@ import {
   IonButtons,
   IonIcon,
   IonSpinner,
-  IonModal
+  IonModal,
+  IonPopover,
+  IonList,
+  IonItem,
+  IonLabel
 } from '@ionic/vue';
 import {
   addOutline,
@@ -157,8 +212,13 @@ import {
   chevronUpOutline,
   chevronDownOutline,
   notificationsOutline,
-  createOutline
+  createOutline,
+  moonOutline,
+  sunnyOutline,
+  filterOutline,
+  checkmarkOutline
 } from 'ionicons/icons';
+import { useDarkMode } from '../composables/useDarkMode';
 import CalendarView from '../components/CalendarView.vue';
 import ExamForm from '../components/ExamForm.vue';
 import { getAllExams, addExam, updateExam, deleteExam as deleteExamService } from '../services/examService';
@@ -167,8 +227,10 @@ import {
   scheduleExamNotification, 
   cancelExamNotification,
   scheduleAllExamNotifications,
-  sendTestNotification
+  sendTestNotification,
+  getPendingNotifications
 } from '../services/notificationService';
+import { LocalNotifications } from '@capacitor/local-notifications';
 import type { Exam, ExamFormData } from '../models/Exam';
 import { toastController } from '@ionic/vue';
 
@@ -178,7 +240,39 @@ const error = ref('');
 const selectedDate = ref<Date | null>(null);
 const showAddExam = ref(false);
 const editingExam = ref<{ id?: string } & ExamFormData | undefined>(undefined);
-const calendarExpanded = ref(true);
+const selectedSubject = ref<string>('');
+const showSubjectFilter = ref(false);
+const filterEvent = ref<Event | undefined>(undefined);
+const { isDark, toggleDarkMode } = useDarkMode();
+
+const uniqueSubjects = computed(() => {
+  const subjects = new Set<string>();
+  exams.value.forEach(exam => {
+    if (exam.subject) {
+      subjects.add(exam.subject);
+    }
+  });
+  return Array.from(subjects).sort();
+});
+
+const filteredExams = computed(() => {
+  if (!selectedSubject.value) {
+    return upcomingExams.value;
+  }
+  return upcomingExams.value.filter(exam => exam.subject === selectedSubject.value);
+});
+
+// Load calendar state from localStorage
+const getStoredCalendarState = (): boolean => {
+  try {
+    const stored = localStorage.getItem('calendarExpanded');
+    return stored !== null ? stored === 'true' : true; // Default to expanded
+  } catch {
+    return true;
+  }
+};
+
+const calendarExpanded = ref(getStoredCalendarState());
 
 const upcomingExams = computed(() => {
   const today = new Date();
@@ -370,6 +464,22 @@ function closeExamForm() {
 
 function toggleCalendar() {
   calendarExpanded.value = !calendarExpanded.value;
+  // Save state to localStorage
+  try {
+    localStorage.setItem('calendarExpanded', calendarExpanded.value.toString());
+  } catch (error) {
+    console.warn('Failed to save calendar state:', error);
+  }
+}
+
+function openSubjectFilter(event: Event) {
+  filterEvent.value = event;
+  showSubjectFilter.value = true;
+}
+
+function selectSubject(subject: string) {
+  selectedSubject.value = subject;
+  showSubjectFilter.value = false;
 }
 
 onMounted(async () => {
@@ -381,6 +491,14 @@ onMounted(async () => {
 
 async function syncNotifications() {
   try {
+    // Cancel all existing notifications first
+    const pending = await getPendingNotifications();
+    const examNotifications = pending.filter(n => n.extra?.examId);
+    if (examNotifications.length > 0) {
+      const ids = examNotifications.map(n => n.id);
+      await LocalNotifications.cancel({ notifications: ids.map(id => ({ id })) });
+    }
+    
     // Schedule notifications for all exams that have notifications enabled
     await scheduleAllExamNotifications(exams.value);
   } catch (error) {
@@ -480,11 +598,31 @@ async function testNotification() {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  gap: 12px;
+}
+
 .section-title {
   font-size: 18px;
   font-weight: 600;
   color: #1d1d1f;
-  margin: 0 0 16px 0;
+  margin: 0;
+  flex: 1;
+}
+
+.filter-button {
+  --border-color: #007AFF;
+  --color: #007AFF;
+  --border-radius: 8px;
+  height: 36px;
+  font-size: 14px;
+  font-weight: 500;
+  min-width: 120px;
+  flex-shrink: 0;
 }
 
 .exams-list {
@@ -631,6 +769,44 @@ async function testNotification() {
   padding: 20px;
   max-width: 600px;
   margin: 0 auto;
+}
+
+.filter-popover-content {
+  min-width: 200px;
+  max-width: 300px;
+}
+
+.filter-popover-header {
+  padding: 16px 16px 8px 16px;
+  border-bottom: 1px solid var(--ion-color-step-200);
+}
+
+.filter-popover-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ion-text-color);
+}
+
+.filter-popover-content ion-list {
+  padding: 0;
+}
+
+.filter-popover-content ion-item {
+  --padding-start: 16px;
+  --padding-end: 16px;
+  --min-height: 48px;
+  cursor: pointer;
+}
+
+.filter-popover-content ion-item.selected {
+  --background: rgba(var(--ion-color-primary-rgb), 0.1);
+}
+
+.filter-popover-content ion-item h2 {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ion-text-color);
 }
 
 .test-notification-section {

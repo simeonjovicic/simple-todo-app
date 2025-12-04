@@ -1,22 +1,28 @@
 import { LocalNotifications } from '@capacitor/local-notifications';
 import type { Exam } from '../models/Exam';
 
-// Helper function to get notification message based on exam date
-function getNotificationMessage(examDate: Date): string {
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
-  const examDateOnly = new Date(examDate);
-  examDateOnly.setHours(0, 0, 0, 0);
-  
-  const diffTime = examDateOnly.getTime() - now.getTime();
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  
-  if (diffDays === 0) {
+// Get notification settings
+function getNotificationSettings() {
+  try {
+    const stored = localStorage.getItem('notificationSettings');
+    if (stored) {
+      const settings = JSON.parse(stored);
+      return settings.daysBefore || [7, 3];
+    }
+  } catch (error) {
+    console.warn('Failed to load notification settings:', error);
+  }
+  return [7, 3]; // Default fallback
+}
+
+// Helper function to get notification message based on exam date and days before
+function getNotificationMessage(examDate: Date, daysBefore: number): string {
+  if (daysBefore === 0) {
     return 'today';
-  } else if (diffDays === 1) {
+  } else if (daysBefore === 1) {
     return 'tomorrow';
   } else {
-    return `in ${diffDays} days`;
+    return `in ${daysBefore} days`;
   }
 }
 
@@ -56,43 +62,52 @@ export async function scheduleExamNotification(exam: Exam): Promise<void> {
       return;
     }
 
-    // Schedule notification 1 day before the exam (default)
-    const notificationDate = new Date(examDate);
-    notificationDate.setDate(notificationDate.getDate() - 1);
-    notificationDate.setHours(9, 0, 0, 0); // 9 AM the day before
+    // Get settings from localStorage
+    const daysBefore = getNotificationSettings();
 
-    // If the notification time is in the past, schedule for 1 hour before exam
-    if (notificationDate < now) {
-      const oneHourBefore = new Date(examDate.getTime() - 60 * 60 * 1000);
-      // Only schedule if it's still in the future
-      if (oneHourBefore > now) {
-        notificationDate.setTime(oneHourBefore.getTime());
-      } else {
-        // Exam is too soon, don't schedule
-        return;
+    // Schedule notifications for each day before
+    const notifications = [];
+    const examDateOnly = new Date(examDate);
+    examDateOnly.setHours(0, 0, 0, 0);
+
+    for (let i = 0; i < daysBefore.length; i++) {
+      const days = daysBefore[i];
+      if (days < 0 || days > 365) continue; // Skip invalid days
+
+      const notificationDate = new Date(examDateOnly);
+      notificationDate.setDate(notificationDate.getDate() - days);
+      notificationDate.setHours(9, 0, 0, 0); // 9 AM
+
+      // Skip if notification time is in the past
+      if (notificationDate < now) {
+        continue;
       }
+
+      // Generate unique notification ID for each reminder
+      const baseId = exam.id ? parseInt(exam.id.slice(-8), 16) % 2147483647 : Date.now();
+      const notificationId = baseId + i; // Make each notification unique
+
+      notifications.push({
+        title: 'Exam Reminder',
+        body: `${exam.title}${exam.subject ? ` (${exam.subject})` : ''} is ${getNotificationMessage(examDate, days)}`,
+        id: notificationId,
+        schedule: { at: notificationDate },
+        sound: 'default',
+        extra: {
+          examId: exam.id,
+          examTitle: exam.title,
+          daysBefore: days
+        }
+      });
     }
 
-    // Use exam ID as notification ID (for cancellation later)
-    const notificationId = exam.id ? parseInt(exam.id.slice(-8), 16) % 2147483647 : Date.now();
+    if (notifications.length > 0) {
+      await LocalNotifications.schedule({
+        notifications
+      });
 
-    await LocalNotifications.schedule({
-      notifications: [
-        {
-          title: 'Exam Reminder',
-          body: `${exam.title}${exam.subject ? ` (${exam.subject})` : ''} is ${getNotificationMessage(examDate)}`,
-          id: notificationId,
-          schedule: { at: notificationDate },
-          sound: 'default',
-          extra: {
-            examId: exam.id,
-            examTitle: exam.title
-          }
-        }
-      ]
-    });
-
-    console.log(`Scheduled notification for exam: ${exam.title} on ${notificationDate.toLocaleString()}`);
+      console.log(`Scheduled ${notifications.length} notification(s) for exam: ${exam.title}`);
+    }
   } catch (error) {
     console.error('Error scheduling notification:', error);
     throw error;
@@ -102,14 +117,22 @@ export async function scheduleExamNotification(exam: Exam): Promise<void> {
 // Cancel notification for an exam
 export async function cancelExamNotification(examId: string): Promise<void> {
   try {
-    // Convert exam ID to notification ID (same logic as scheduling)
-    const notificationId = parseInt(examId.slice(-8), 16) % 2147483647;
+    // Get all pending notifications
+    const pending = await LocalNotifications.getPending();
     
-    await LocalNotifications.cancel({
-      notifications: [{ id: notificationId }]
-    });
+    // Find all notifications for this exam
+    const examNotifications = pending.notifications.filter(notif => 
+      notif.extra?.examId === examId
+    );
 
-    console.log(`Cancelled notification for exam ID: ${examId}`);
+    if (examNotifications.length > 0) {
+      const ids = examNotifications.map(n => n.id);
+      await LocalNotifications.cancel({
+        notifications: ids.map(id => ({ id }))
+      });
+
+      console.log(`Cancelled ${ids.length} notification(s) for exam ID: ${examId}`);
+    }
   } catch (error) {
     console.error('Error cancelling notification:', error);
     // Don't throw - it's okay if notification doesn't exist
