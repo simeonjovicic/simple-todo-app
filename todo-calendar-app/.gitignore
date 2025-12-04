@@ -42,3 +42,7 @@ firebase-debug.log
 
 # macOS
 .DS_Store
+
+# Native platforms (generated, don't commit)
+/android
+/ios
