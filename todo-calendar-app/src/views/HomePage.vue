@@ -2,7 +2,7 @@
   <ion-page>
     <ion-header :translucent="true">
       <ion-toolbar>
-        <ion-title>Tasks</ion-title>
+        <ion-title>Home</ion-title>
         <ion-buttons slot="end">
           <ion-button @click="toggleDarkMode">
             <ion-icon :icon="isDark ? sunnyOutline : moonOutline" slot="icon-only"></ion-icon>
@@ -11,61 +11,101 @@
       </ion-toolbar>
     </ion-header>
 
-    <ion-content :fullscreen="true" class="todo-content">
-      <div class="todo-container">
-        <!-- Add Todo Form -->
-        <AddTodoForm @add="handleAddTodo" />
+    <ion-content :fullscreen="true" class="home-content">
+      <div class="home-container">
+        <!-- Current Date & Time -->
+        <div class="date-time-section">
+          <div class="current-time">{{ currentTime }}</div>
+          <div class="current-date">{{ currentDate }}</div>
+        </div>
 
-        <!-- Search Bar -->
-        <div v-if="!loading && !error && todos.length > 0" class="search-section">
-          <ion-item lines="none" class="search-item">
-            <ion-icon :icon="searchOutline" slot="start"></ion-icon>
-            <ion-input
-              v-model="searchQuery"
-              placeholder="Search tasks..."
-              class="search-input"
-              clearable
-            ></ion-input>
-          </ion-item>
+        <!-- Analytics Cards -->
+        <div class="analytics-section">
+          <div class="stat-card">
+            <div class="stat-value">{{ todos.length }}</div>
+            <div class="stat-label">Total Tasks</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">{{ completedTodosCount }}</div>
+            <div class="stat-label">Completed</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">{{ upcomingExamsCount }}</div>
+            <div class="stat-label">Upcoming Exams</div>
+          </div>
+        </div>
+
+        <!-- Quick Add Todo -->
+        <div class="quick-add-section">
+          <AddTodoForm @add="handleAddTodo" />
+        </div>
+
+        <!-- Upcoming Exams -->
+        <div v-if="upcomingExams.length > 0" class="section">
+          <div class="section-header">
+            <h3 class="section-title">Upcoming Exams</h3>
+            <ion-button fill="clear" size="small" router-link="/calendar">
+              View All
+              <ion-icon :icon="chevronForwardOutline" slot="end"></ion-icon>
+            </ion-button>
+          </div>
+          <div class="exams-list">
+            <div
+              v-for="exam in upcomingExams.slice(0, 3)"
+              :key="exam.id"
+              class="exam-item"
+              @click="goToCalendar"
+            >
+              <div class="exam-info">
+                <div class="exam-title">{{ exam.title }}</div>
+                <div class="exam-meta">
+                  <span v-if="exam.subject" class="exam-subject">{{ exam.subject }}</span>
+                  <span class="exam-date">{{ formatExamDate(exam.date) }}</span>
+                </div>
+              </div>
+              <ion-icon :icon="chevronForwardOutline" class="chevron-icon"></ion-icon>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent Todos -->
+        <div v-if="recentTodos.length > 0" class="section">
+          <div class="section-header">
+            <h3 class="section-title">Recent Tasks</h3>
+            <ion-button fill="clear" size="small" @click="showAllTodos = !showAllTodos">
+              {{ showAllTodos ? 'Show Less' : 'Show All' }}
+            </ion-button>
+          </div>
+          <div class="todos-list">
+            <TodoItem
+              v-for="todo in displayedTodos"
+              :key="todo.id"
+              :todo="todo"
+              @toggle="handleToggleTodo"
+              @delete="handleDeleteTodo"
+              @edit="handleEditTodo"
+            />
+          </div>
+        </div>
+
+        <!-- Empty States -->
+        <div v-if="!loading && !error && todos.length === 0 && upcomingExams.length === 0" class="empty-state">
+          <ion-icon :icon="checkmarkDoneOutline" size="large" color="medium"></ion-icon>
+          <h2>Welcome!</h2>
+          <p>Add a task or exam to get started</p>
         </div>
 
         <!-- Loading State -->
         <div v-if="loading" class="loading-state">
           <ion-spinner></ion-spinner>
-          <p>Loading tasks...</p>
+          <p>Loading...</p>
         </div>
 
         <!-- Error State -->
-        <div v-else-if="error" class="error-state">
+        <div v-if="error" class="error-state">
           <ion-icon :icon="alertCircleOutline" size="large" color="medium"></ion-icon>
           <p>{{ error }}</p>
-          <ion-button fill="outline" @click="loadTodos">Try Again</ion-button>
-        </div>
-
-        <!-- Empty State -->
-        <div v-else-if="todos.length === 0" class="empty-state">
-          <ion-icon :icon="checkmarkDoneOutline" size="large" color="medium"></ion-icon>
-          <h2>No tasks yet</h2>
-          <p>Add a task above to get started</p>
-        </div>
-
-        <!-- Todo List -->
-        <div v-else-if="filteredTodos.length > 0" class="todo-list">
-          <TodoItem
-            v-for="todo in filteredTodos"
-            :key="todo.id"
-            :todo="todo"
-            @toggle="handleToggleTodo"
-            @delete="handleDeleteTodo"
-            @edit="handleEditTodo"
-          />
-        </div>
-
-        <!-- No Results -->
-        <div v-else-if="!loading && !error && todos.length > 0 && filteredTodos.length === 0" class="empty-state">
-          <ion-icon :icon="searchOutline" size="large" color="medium"></ion-icon>
-          <h2>No tasks found</h2>
-          <p>Try a different search term</p>
+          <ion-button fill="outline" @click="loadData">Try Again</ion-button>
         </div>
       </div>
     </ion-content>
@@ -73,7 +113,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { 
   IonPage, 
   IonHeader, 
@@ -84,61 +124,164 @@ import {
   IonIcon, 
   IonButton,
   IonButtons,
-  IonItem,
-  IonInput,
   toastController 
 } from '@ionic/vue';
-import { alertCircleOutline, checkmarkDoneOutline, searchOutline, moonOutline, sunnyOutline } from 'ionicons/icons';
+import { 
+  alertCircleOutline, 
+  checkmarkDoneOutline, 
+  moonOutline, 
+  sunnyOutline,
+  chevronForwardOutline
+} from 'ionicons/icons';
 import { useDarkMode } from '../composables/useDarkMode';
 import TodoItem from '../components/TodoItem.vue';
 import AddTodoForm from '../components/AddTodoForm.vue';
 import { getAllTodos, addTodo, toggleTodoComplete, deleteTodo, updateTodo } from '../services/todoService';
-import type { Todo } from '../models/Todo';
+import { getAllExams } from '../services/examService';
+import type { Todo, TodoFormData } from '../models/Todo';
+import type { Exam } from '../models/Exam';
+import { useRouter } from 'vue-router';
 
+const router = useRouter();
 const todos = ref<Todo[]>([]);
+const exams = ref<Exam[]>([]);
 const loading = ref(true);
 const error = ref('');
-const searchQuery = ref('');
+const showAllTodos = ref(false);
+const currentTime = ref('');
+const currentDate = ref('');
+let timeInterval: ReturnType<typeof setInterval> | null = null;
+
 const { isDark, toggleDarkMode } = useDarkMode();
 
-const filteredTodos = computed(() => {
-  if (!searchQuery.value.trim()) {
-    return todos.value;
-  }
-  
-  const query = searchQuery.value.toLowerCase().trim();
-  return todos.value.filter(todo => 
-    todo.title.toLowerCase().includes(query) ||
-    (todo.description && todo.description.toLowerCase().includes(query))
-  );
+// Update time and date
+function updateDateTime() {
+  const now = new Date();
+  currentTime.value = now.toLocaleTimeString('en-US', { 
+    hour: '2-digit', 
+    minute: '2-digit',
+    hour12: true 
+  });
+  currentDate.value = now.toLocaleDateString('en-US', { 
+    weekday: 'long', 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
+  });
+}
+
+// Analytics
+const completedTodosCount = computed(() => {
+  return todos.value.filter(todo => todo.completed).length;
 });
 
-async function loadTodos() {
+const upcomingExamsCount = computed(() => {
+  return upcomingExams.value.length;
+});
+
+// Upcoming exams (next 3)
+const upcomingExams = computed(() => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  return exams.value
+    .filter(exam => {
+      const examDate = exam.date instanceof Date 
+        ? exam.date 
+        : exam.date.toDate ? exam.date.toDate() : new Date(exam.date);
+      const examDateOnly = new Date(examDate);
+      examDateOnly.setHours(0, 0, 0, 0);
+      return examDateOnly >= today;
+    })
+    .sort((a, b) => {
+      const dateA = a.date instanceof Date 
+        ? a.date 
+        : a.date.toDate ? a.date.toDate() : new Date(a.date);
+      const dateB = b.date instanceof Date 
+        ? b.date 
+        : b.date.toDate ? b.date.toDate() : new Date(b.date);
+      return dateA.getTime() - dateB.getTime();
+    })
+    .slice(0, 3);
+});
+
+// Recent todos (incomplete first, then completed)
+const recentTodos = computed(() => {
+  return [...todos.value].sort((a, b) => {
+    // Incomplete todos first
+    if (a.completed !== b.completed) {
+      return a.completed ? 1 : -1;
+    }
+    // Then by creation date (newest first)
+    return b.createdAt.getTime() - a.createdAt.getTime();
+  });
+});
+
+const displayedTodos = computed(() => {
+  if (showAllTodos.value) {
+    return recentTodos.value;
+  }
+  return recentTodos.value.slice(0, 5);
+});
+
+function formatExamDate(date: Date | any): string {
+  const examDate = date instanceof Date 
+    ? date 
+    : date.toDate ? date.toDate() : new Date(date);
+  
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const examDateOnly = new Date(examDate);
+  examDateOnly.setHours(0, 0, 0, 0);
+  
+  const diffTime = examDateOnly.getTime() - today.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  
+  if (diffDays === 0) {
+    return 'Today';
+  } else if (diffDays === 1) {
+    return 'Tomorrow';
+  } else if (diffDays < 7) {
+    return `In ${diffDays} days`;
+  } else {
+    return examDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+}
+
+async function loadData() {
   try {
     loading.value = true;
     error.value = '';
-    todos.value = await getAllTodos();
+    
+    const [todosData, examsData] = await Promise.all([
+      getAllTodos(),
+      getAllExams()
+    ]);
+    
+    todos.value = todosData;
+    exams.value = examsData;
   } catch (err: any) {
-    error.value = err.message || 'Failed to load tasks';
-    console.error('Error loading todos:', err);
+    console.error('Error loading data:', err);
+    error.value = err.message || 'Failed to load data';
   } finally {
     loading.value = false;
   }
 }
 
-async function handleAddTodo(data: { title: string; dueDate?: Date }) {
+async function handleAddTodo(todoData: TodoFormData) {
   try {
-    await addTodo({ title: data.title, dueDate: data.dueDate });
-    await loadTodos();
+    await addTodo(todoData);
+    await loadData();
     
     const toast = await toastController.create({
-      message: 'Task added',
+      message: 'Task added!',
       duration: 1500,
       position: 'bottom',
       color: 'success'
     });
     await toast.present();
   } catch (err: any) {
+    console.error('Error adding todo:', err);
     const toast = await toastController.create({
       message: 'Failed to add task',
       duration: 2000,
@@ -146,7 +289,6 @@ async function handleAddTodo(data: { title: string; dueDate?: Date }) {
       color: 'danger'
     });
     await toast.present();
-    console.error('Error adding todo:', err);
   }
 }
 
@@ -155,24 +297,17 @@ async function handleToggleTodo(id: string) {
     const todo = todos.value.find(t => t.id === id);
     if (todo) {
       await toggleTodoComplete(id, !todo.completed);
-      await loadTodos();
+      await loadData();
     }
   } catch (err: any) {
     console.error('Error toggling todo:', err);
-    const toast = await toastController.create({
-      message: 'Failed to update task',
-      duration: 2000,
-      position: 'bottom',
-      color: 'danger'
-    });
-    await toast.present();
   }
 }
 
 async function handleDeleteTodo(id: string) {
   try {
     await deleteTodo(id);
-    await loadTodos();
+    await loadData();
     
     const toast = await toastController.create({
       message: 'Task deleted',
@@ -183,20 +318,13 @@ async function handleDeleteTodo(id: string) {
     await toast.present();
   } catch (err: any) {
     console.error('Error deleting todo:', err);
-    const toast = await toastController.create({
-      message: 'Failed to delete task',
-      duration: 2000,
-      position: 'bottom',
-      color: 'danger'
-    });
-    await toast.present();
   }
 }
 
 async function handleEditTodo(id: string, title: string) {
   try {
     await updateTodo(id, { title });
-    await loadTodos();
+    await loadData();
     
     const toast = await toastController.create({
       message: 'Task updated',
@@ -206,114 +334,248 @@ async function handleEditTodo(id: string, title: string) {
     });
     await toast.present();
   } catch (err: any) {
-    console.error('Error editing todo:', err);
-    const toast = await toastController.create({
-      message: 'Failed to update task',
-      duration: 2000,
-      position: 'bottom',
-      color: 'danger'
-    });
-    await toast.present();
+    console.error('Error updating todo:', err);
   }
 }
 
+function goToCalendar() {
+  router.push('/calendar');
+}
+
 onMounted(() => {
-  loadTodos();
+  updateDateTime();
+  timeInterval = setInterval(updateDateTime, 1000);
+  loadData();
+});
+
+onUnmounted(() => {
+  if (timeInterval) {
+    clearInterval(timeInterval);
+  }
 });
 </script>
 
 <style scoped>
-.todo-content {
+.home-content {
   --background: #f5f5f7;
 }
 
-.todo-container {
+.home-container {
   max-width: 600px;
   margin: 0 auto;
   padding: 16px;
 }
 
-.search-section {
-  margin-bottom: 16px;
+/* Date & Time Section */
+.date-time-section {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 20px;
+  padding: 24px;
+  margin-bottom: 20px;
+  text-align: center;
+  color: white;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.current-time {
+  font-size: 48px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  letter-spacing: -1px;
+}
+
+.current-date {
+  font-size: 16px;
+  opacity: 0.9;
+  font-weight: 400;
+}
+
+/* Analytics Section */
+.analytics-section {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.stat-card {
   background: white;
+  border-radius: 16px;
+  padding: 20px;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.stat-value {
+  font-size: 32px;
+  font-weight: 700;
+  color: #007AFF;
+  margin-bottom: 4px;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: #86868b;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Quick Add Section */
+.quick-add-section {
+  margin-bottom: 24px;
+}
+
+/* Section */
+.section {
+  background: white;
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.section-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1d1d1f;
+  margin: 0;
+}
+
+/* Exams List */
+.exams-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.exam-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  background: #f5f5f7;
   border-radius: 12px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-  overflow: hidden;
+  cursor: pointer;
+  transition: background 0.2s ease;
 }
 
-.search-item {
-  --padding-start: 16px;
-  --padding-end: 16px;
-  --inner-padding-end: 0;
-  --background: transparent;
-  --min-height: 56px;
+.exam-item:active {
+  background: #e5e5ea;
 }
 
-.search-item ion-icon {
+.exam-info {
+  flex: 1;
+}
+
+.exam-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1d1d1f;
+  margin-bottom: 6px;
+}
+
+.exam-meta {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  font-size: 14px;
+  color: #86868b;
+}
+
+.exam-subject {
+  font-weight: 500;
+  color: #007AFF;
+}
+
+.exam-date {
+  color: #86868b;
+}
+
+.chevron-icon {
   color: #86868b;
   font-size: 20px;
 }
 
-.search-input {
-  --padding-start: 12px;
-  font-size: 16px;
-}
-
-.loading-state,
-.error-state,
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 60px 20px;
-  text-align: center;
-}
-
-.loading-state ion-spinner {
-  margin-bottom: 16px;
-}
-
-.loading-state p,
-.error-state p,
-.empty-state p {
-  color: #86868b;
-  font-size: 16px;
-  margin-top: 12px;
-}
-
-.empty-state h2 {
-  font-size: 22px;
-  font-weight: 600;
-  color: #1d1d1f;
-  margin: 16px 0 8px 0;
-}
-
-.error-state ion-icon,
-.empty-state ion-icon {
-  margin-bottom: 8px;
-  opacity: 0.6;
-}
-
-.todo-list {
+/* Todos List */
+.todos-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-/* Smooth animations */
-.todo-list > * {
-  animation: fadeIn 0.3s ease-in;
+/* Empty State */
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: #86868b;
 }
 
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(-8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.empty-state h2 {
+  font-size: 20px;
+  font-weight: 600;
+  color: #1d1d1f;
+  margin: 16px 0 8px 0;
+}
+
+.empty-state p {
+  font-size: 14px;
+  color: #86868b;
+}
+
+/* Loading State */
+.loading-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: #86868b;
+}
+
+.loading-state p {
+  margin-top: 16px;
+  font-size: 14px;
+}
+
+/* Error State */
+.error-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: #86868b;
+}
+
+.error-state p {
+  margin: 16px 0;
+  font-size: 14px;
+}
+
+/* Dark Mode */
+.dark .stat-card {
+  background: #1c1c1e;
+}
+
+.dark .section {
+  background: #1c1c1e;
+}
+
+.dark .exam-item {
+  background: #2c2c2e;
+}
+
+.dark .section-title {
+  color: #ffffff;
+}
+
+.dark .exam-title {
+  color: #ffffff;
+}
+
+.dark .empty-state h2 {
+  color: #ffffff;
 }
 </style>

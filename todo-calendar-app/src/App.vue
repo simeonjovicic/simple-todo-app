@@ -5,7 +5,7 @@
       <ion-tab-bar slot="bottom" class="tab-bar">
         <ion-tab-button tab="home" href="/home">
           <ion-icon :icon="listOutline"></ion-icon>
-          <ion-label>Tasks</ion-label>
+          <ion-label>Home</ion-label>
         </ion-tab-button>
         <ion-tab-button tab="calendar" href="/calendar">
           <ion-icon :icon="calendarOutline"></ion-icon>
