@@ -97,17 +97,21 @@ export async function getExamsByDateRange(startDate: Date, endDate: Date): Promi
 // Add a new exam
 export async function addExam(examData: ExamFormData): Promise<string> {
   try {
-    const newExam = {
+    const newExam: any = {
       title: examData.title,
       subject: examData.subject || '',
       date: Timestamp.fromDate(examData.date),
-      time: examData.time || '',
-      location: examData.location || '',
-      notes: examData.notes || '',
       notificationEnabled: examData.notificationEnabled || false,
-      notificationTime: examData.notificationTime ? Timestamp.fromDate(examData.notificationTime) : null,
       createdAt: Timestamp.now(),
     };
+
+    // Only include optional fields if they exist (Firestore doesn't accept undefined)
+    if (examData.time) newExam.time = examData.time;
+    if (examData.location) newExam.location = examData.location;
+    if (examData.notes) newExam.notes = examData.notes;
+    if (examData.notificationTime) {
+      newExam.notificationTime = Timestamp.fromDate(examData.notificationTime);
+    }
 
     const docRef = await addDoc(collection(db, EXAMS_COLLECTION), newExam);
     return docRef.id;
