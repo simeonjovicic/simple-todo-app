@@ -122,24 +122,22 @@ export async function addExam(examData: ExamFormData): Promise<string> {
 }
 
 // Update an exam
-export async function updateExam(examId: string, updates: Partial<Exam>): Promise<void> {
+export async function updateExam(examId: string, updates: ExamFormData): Promise<void> {
   try {
     const examRef = doc(db, EXAMS_COLLECTION, examId);
-    const updateData: any = {};
-    
-    if (updates.title !== undefined) updateData.title = updates.title;
-    if (updates.subject !== undefined) updateData.subject = updates.subject;
-    if (updates.date !== undefined) {
-      updateData.date = Timestamp.fromDate(updates.date as Date);
-    }
-    if (updates.time !== undefined) updateData.time = updates.time;
-    if (updates.location !== undefined) updateData.location = updates.location;
-    if (updates.notes !== undefined) updateData.notes = updates.notes;
-    if (updates.notificationEnabled !== undefined) updateData.notificationEnabled = updates.notificationEnabled;
-    if (updates.notificationTime !== undefined) {
-      updateData.notificationTime = updates.notificationTime 
-        ? Timestamp.fromDate(updates.notificationTime as Date) 
-        : null;
+    const updateData: any = {
+      title: updates.title,
+      subject: updates.subject || '',
+      date: Timestamp.fromDate(updates.date),
+      notificationEnabled: updates.notificationEnabled || false,
+    };
+
+    // Only include optional fields if they exist
+    if (updates.time) updateData.time = updates.time;
+    if (updates.location) updateData.location = updates.location;
+    if (updates.notes) updateData.notes = updates.notes;
+    if (updates.notificationTime) {
+      updateData.notificationTime = Timestamp.fromDate(updates.notificationTime);
     }
 
     await updateDoc(examRef, updateData);

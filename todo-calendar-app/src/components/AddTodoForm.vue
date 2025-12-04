@@ -10,6 +10,15 @@
       ></ion-input>
       <ion-button
         fill="clear"
+        @click="toggleDueDate"
+        class="date-button"
+        :color="showDueDate ? 'primary' : 'medium'"
+        title="Add due date"
+      >
+        <ion-icon :icon="calendarOutline" slot="icon-only"></ion-icon>
+      </ion-button>
+      <ion-button
+        fill="clear"
         @click="addTodo"
         :disabled="!title.trim()"
         class="add-button"
@@ -18,25 +27,52 @@
         <ion-icon :icon="addOutline" slot="icon-only"></ion-icon>
       </ion-button>
     </ion-item>
+    
+    <div v-if="showDueDate" class="due-date-picker">
+      <DatePicker
+        v-model="dueDate"
+        :min-date="minDate"
+        class="date-picker-wrapper"
+      />
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { IonItem, IonInput, IonButton, IonIcon } from '@ionic/vue';
-import { addOutline } from 'ionicons/icons';
+import { addOutline, calendarOutline } from 'ionicons/icons';
+import DatePicker from './DatePicker.vue';
 
 interface Emits {
-  (e: 'add', title: string): void;
+  (e: 'add', data: { title: string; dueDate?: Date }): void;
 }
 
 const emit = defineEmits<Emits>();
 const title = ref('');
+const showDueDate = ref(false);
+const dueDate = ref<Date>(new Date());
+
+const minDate = computed(() => {
+  return new Date();
+});
+
+function toggleDueDate() {
+  showDueDate.value = !showDueDate.value;
+  if (showDueDate.value && !dueDate.value) {
+    dueDate.value = new Date();
+  }
+}
 
 function addTodo() {
   if (title.value.trim()) {
-    emit('add', title.value.trim());
+    emit('add', {
+      title: title.value.trim(),
+      dueDate: showDueDate.value ? dueDate.value : undefined
+    });
     title.value = '';
+    showDueDate.value = false;
+    dueDate.value = new Date();
   }
 }
 </script>
@@ -69,6 +105,7 @@ function addTodo() {
   padding: 0;
 }
 
+.date-button,
 .add-button {
   --color: #007AFF;
   margin: 0;
@@ -78,9 +115,26 @@ function addTodo() {
   width: 40px;
 }
 
+.date-button {
+  --color: #86868b;
+}
+
+.date-button[color="primary"] {
+  --color: #007AFF;
+}
+
 .add-button[disabled] {
   --color: #c7c7cc;
   opacity: 0.5;
 }
-</style>
 
+.due-date-picker {
+  padding: 12px 16px 16px;
+  border-top: 1px solid #e5e5ea;
+  margin-top: 8px;
+}
+
+.date-picker-wrapper {
+  width: 100%;
+}
+</style>

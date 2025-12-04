@@ -41,21 +41,31 @@
               class="exam-card"
             >
               <div class="exam-header">
-                <div class="exam-main">
+                <div class="exam-main" @click="editExam(exam)">
                   <h4>{{ exam.title }}</h4>
                   <div class="exam-meta">
                     <span class="exam-subject">{{ exam.subject }}</span>
                     <span class="exam-date">{{ formatExamDate(exam.date) }}</span>
                   </div>
                 </div>
-                <ion-button
-                  fill="clear"
-                  @click="deleteExam(exam.id!)"
-                  class="delete-button"
-                  color="medium"
-                >
-                  <ion-icon :icon="trashOutline" slot="icon-only"></ion-icon>
-                </ion-button>
+                <div class="exam-actions">
+                  <ion-button
+                    fill="clear"
+                    @click="editExam(exam)"
+                    class="edit-button"
+                    color="medium"
+                  >
+                    <ion-icon :icon="createOutline" slot="icon-only"></ion-icon>
+                  </ion-button>
+                  <ion-button
+                    fill="clear"
+                    @click="deleteExam(exam.id!)"
+                    class="delete-button"
+                    color="medium"
+                  >
+                    <ion-icon :icon="trashOutline" slot="icon-only"></ion-icon>
+                  </ion-button>
+                </div>
               </div>
             </div>
           </div>
@@ -146,11 +156,12 @@ import {
   calendarOutline,
   chevronUpOutline,
   chevronDownOutline,
-  notificationsOutline
+  notificationsOutline,
+  createOutline
 } from 'ionicons/icons';
 import CalendarView from '../components/CalendarView.vue';
 import ExamForm from '../components/ExamForm.vue';
-import { getAllExams, addExam, deleteExam as deleteExamService } from '../services/examService';
+import { getAllExams, addExam, updateExam, deleteExam as deleteExamService } from '../services/examService';
 import { 
   requestNotificationPermission, 
   scheduleExamNotification, 
@@ -166,7 +177,7 @@ const loading = ref(true);
 const error = ref('');
 const selectedDate = ref<Date | null>(null);
 const showAddExam = ref(false);
-const editingExam = ref<ExamFormData | undefined>(undefined);
+const editingExam = ref<{ id?: string } & ExamFormData | undefined>(undefined);
 const calendarExpanded = ref(true);
 
 const upcomingExams = computed(() => {
@@ -253,32 +264,47 @@ function handleDateSelected(date: Date) {
 
 async function handleSaveExam(examData: ExamFormData) {
   try {
-    const examId = await addExam(examData);
-    await loadExams();
-    
-    // Schedule notification if enabled
-    if (examData.notificationEnabled) {
-      // Get the newly created exam from the loaded list
-      const newExam = exams.value.find(e => e.id === examId);
-      if (newExam) {
-        try {
-          await scheduleExamNotification(newExam);
-        } catch (notifError) {
-          console.error('Error scheduling notification:', notifError);
-          // Don't fail the whole operation if notification fails
+    if (editingExam.value && editingExam.value.id) {
+      // Update existing exam
+      await updateExam(editingExam.value.id, examData);
+      await loadExams();
+      
+      const toast = await toastController.create({
+        message: 'Exam updated successfully',
+        duration: 1500,
+        position: 'bottom',
+        color: 'success'
+      });
+      await toast.present();
+    } else {
+      // Add new exam
+      const examId = await addExam(examData);
+      await loadExams();
+      
+      // Schedule notification if enabled
+      if (examData.notificationEnabled) {
+        // Get the newly created exam from the loaded list
+        const newExam = exams.value.find(e => e.id === examId);
+        if (newExam) {
+          try {
+            await scheduleExamNotification(newExam);
+          } catch (notifError) {
+            console.error('Error scheduling notification:', notifError);
+            // Don't fail the whole operation if notification fails
+          }
         }
       }
+      
+      const toast = await toastController.create({
+        message: 'Exam added successfully',
+        duration: 1500,
+        position: 'bottom',
+        color: 'success'
+      });
+      await toast.present();
     }
     
     closeExamForm();
-    
-    const toast = await toastController.create({
-      message: 'Exam added successfully',
-      duration: 1500,
-      position: 'bottom',
-      color: 'success'
-    });
-    await toast.present();
   } catch (err: any) {
     console.error('Error saving exam:', err);
     const toast = await toastController.create({
@@ -289,6 +315,20 @@ async function handleSaveExam(examData: ExamFormData) {
     });
     await toast.present();
   }
+}
+
+function editExam(exam: Exam) {
+  editingExam.value = {
+    id: exam.id,
+    title: exam.title,
+    subject: exam.subject || '',
+    date: exam.date instanceof Date 
+      ? exam.date 
+      : exam.date.toDate ? exam.date.toDate() : new Date(exam.date),
+    notificationEnabled: exam.notificationEnabled || false
+  };
+  selectedDate.value = editingExam.value.date;
+  showAddExam.value = true;
 }
 
 async function deleteExam(id: string) {
@@ -469,6 +509,27 @@ async function testNotification() {
 
 .exam-main {
   flex: 1;
+  cursor: pointer;
+}
+
+.exam-actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.edit-button {
+  --color: #86868b;
+  margin: 0;
+  --padding-start: 8px;
+  --padding-end: 8px;
+  height: 32px;
+  width: 32px;
+  flex-shrink: 0;
+}
+
+.edit-button:hover {
+  --color: #007AFF;
 }
 
 .exam-header h4 {

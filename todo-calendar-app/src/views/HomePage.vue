@@ -39,6 +39,7 @@
             :todo="todo"
             @toggle="handleToggleTodo"
             @delete="handleDeleteTodo"
+            @edit="handleEditTodo"
           />
         </div>
       </div>
@@ -62,7 +63,7 @@ import {
 import { alertCircleOutline, checkmarkDoneOutline } from 'ionicons/icons';
 import TodoItem from '../components/TodoItem.vue';
 import AddTodoForm from '../components/AddTodoForm.vue';
-import { getAllTodos, addTodo, toggleTodoComplete, deleteTodo } from '../services/todoService';
+import { getAllTodos, addTodo, toggleTodoComplete, deleteTodo, updateTodo } from '../services/todoService';
 import type { Todo } from '../models/Todo';
 
 const todos = ref<Todo[]>([]);
@@ -82,9 +83,9 @@ async function loadTodos() {
   }
 }
 
-async function handleAddTodo(title: string) {
+async function handleAddTodo(data: { title: string; dueDate?: Date }) {
   try {
-    await addTodo({ title });
+    await addTodo({ title: data.title, dueDate: data.dueDate });
     await loadTodos();
     
     const toast = await toastController.create({
@@ -141,6 +142,30 @@ async function handleDeleteTodo(id: string) {
     console.error('Error deleting todo:', err);
     const toast = await toastController.create({
       message: 'Failed to delete task',
+      duration: 2000,
+      position: 'bottom',
+      color: 'danger'
+    });
+    await toast.present();
+  }
+}
+
+async function handleEditTodo(id: string, title: string) {
+  try {
+    await updateTodo(id, { title });
+    await loadTodos();
+    
+    const toast = await toastController.create({
+      message: 'Task updated',
+      duration: 1500,
+      position: 'bottom',
+      color: 'success'
+    });
+    await toast.present();
+  } catch (err: any) {
+    console.error('Error editing todo:', err);
+    const toast = await toastController.create({
+      message: 'Failed to update task',
       duration: 2000,
       position: 'bottom',
       color: 'danger'

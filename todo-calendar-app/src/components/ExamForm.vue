@@ -66,7 +66,7 @@ import type { ExamFormData } from '../models/Exam';
 
 interface Props {
   initialDate?: Date;
-  exam?: ExamFormData;
+  exam?: { id?: string } & ExamFormData;
 }
 
 interface Emits {
