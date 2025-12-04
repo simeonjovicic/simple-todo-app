@@ -102,3 +102,4 @@ Once you update the rules:
 2. The app should work normally
 3. You can add todos and exams without CORS errors
 
+

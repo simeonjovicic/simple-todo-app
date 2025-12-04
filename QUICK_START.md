@@ -104,3 +104,4 @@ I recommend **Option 1** - set up Firebase first, then we can build features tha
 - We can adjust the design/look at any step
 - We'll optimize for minimal resource usage throughout
 
+
