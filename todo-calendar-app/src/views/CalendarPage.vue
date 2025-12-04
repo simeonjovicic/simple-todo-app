@@ -95,7 +95,7 @@
           </ion-button>
         </div>
 
-        <!-- Test Notification Button -->
+        <!-- Test Notification Buttons -->
         <div class="test-notification-section">
           <ion-button 
             fill="outline" 
@@ -103,7 +103,16 @@
             class="test-notification-button"
           >
             <ion-icon :icon="notificationsOutline" slot="start"></ion-icon>
-            Test Notification
+            Test Local Notification
+          </ion-button>
+          <ion-button 
+            fill="outline" 
+            @click="testCloudNotification"
+            class="test-notification-button"
+            color="primary"
+          >
+            <ion-icon :icon="notificationsOutline" slot="start"></ion-icon>
+            Test Cloud Notification (FCM)
           </ion-button>
         </div>
 
@@ -228,6 +237,7 @@ import {
   cancelExamNotification,
   scheduleAllExamNotifications,
   sendTestNotification,
+  sendTestCloudNotification,
   getPendingNotifications
 } from '../services/notificationService';
 import { LocalNotifications } from '@capacitor/local-notifications';
@@ -527,6 +537,28 @@ async function testNotification() {
     await toast.present();
   }
 }
+
+async function testCloudNotification() {
+  try {
+    await sendTestCloudNotification();
+    const toast = await toastController.create({
+      message: 'FCM test notification sent! Check your notifications and console for FCM token.',
+      duration: 4000,
+      position: 'bottom',
+      color: 'success'
+    });
+    await toast.present();
+  } catch (error: any) {
+    console.error('Error testing FCM notification:', error);
+    const toast = await toastController.create({
+      message: error.message || 'Failed to send FCM test notification. Check console for details.',
+      duration: 4000,
+      position: 'bottom',
+      color: 'danger'
+    });
+    await toast.present();
+  }
+}
 </script>
 
 <style scoped>
@@ -816,6 +848,9 @@ async function testNotification() {
   background: white;
   border-radius: 16px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .test-notification-button {

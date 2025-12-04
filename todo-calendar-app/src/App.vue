@@ -25,12 +25,15 @@ import { onMounted } from 'vue';
 import { IonApp, IonRouterOutlet, IonTabs, IonTabBar, IonTabButton, IonIcon, IonLabel } from '@ionic/vue';
 import { listOutline, calendarOutline, settingsOutline } from 'ionicons/icons';
 import { useDarkMode } from './composables/useDarkMode';
+import { initializeNotifications } from './services/notificationService';
 
 // Initialize dark mode
 const { isDark } = useDarkMode();
 
 onMounted(() => {
   // Theme is applied in the composable
+  // Note: FCM initialization is done on user gesture (button click)
+  // to avoid "Notification prompting can only be done from a user gesture" error
 });
 </script>
 

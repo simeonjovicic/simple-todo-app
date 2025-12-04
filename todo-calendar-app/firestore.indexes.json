@@ -1,0 +1,20 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "examNotificationSchedules",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "sent",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "notificationDate",
+          "order": "ASCENDING"
+        }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
+

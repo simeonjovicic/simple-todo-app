@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
-import { getMessaging, getToken, onMessage } from 'firebase/messaging';
+import { getMessaging, getToken, onMessage, isSupported } from 'firebase/messaging';
 
 // Your web app's Firebase configuration from environment variables
 const firebaseConfig = {
@@ -19,51 +19,69 @@ const app = initializeApp(firebaseConfig);
 // Initialize Firestore
 export const db = getFirestore(app);
 
-// Initialize Cloud Messaging (only if supported in browser)
+// Initialize Cloud Messaging
 let messaging: ReturnType<typeof getMessaging> | null = null;
-if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+
+// Initialize messaging only if supported (browser environment)
+export async function initializeMessaging(): Promise<ReturnType<typeof getMessaging> | null> {
+  if (messaging) return messaging;
+  
   try {
-    messaging = getMessaging(app);
+    const supported = await isSupported();
+    if (supported && typeof window !== 'undefined') {
+      messaging = getMessaging(app);
+      console.log('Firebase Cloud Messaging initialized');
+      return messaging;
+    }
   } catch (error) {
     console.warn('Firebase Messaging not supported:', error);
   }
+  return null;
 }
 
-// Request notification permission and get token
-export async function requestNotificationPermission(): Promise<string | null> {
-  if (!messaging) {
-    console.warn('Messaging not available');
-    return null;
-  }
-
+// Get FCM token for this device
+export async function getFCMToken(): Promise<string | null> {
   try {
-    const permission = await Notification.requestPermission();
-    if (permission === 'granted') {
-      // VAPID key from environment variables
-      const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
-      const token = await getToken(messaging, { vapidKey });
-      console.log('FCM Token:', token);
+    const messagingInstance = await initializeMessaging();
+    if (!messagingInstance) {
+      console.warn('Messaging not available');
+      return null;
+    }
+
+    const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
+    if (!vapidKey) {
+      console.warn('VAPID key not configured');
+      return null;
+    }
+
+    const token = await getToken(messagingInstance, { vapidKey });
+    if (token) {
+      console.log('FCM Token obtained:', token);
       return token;
     } else {
-      console.warn('Notification permission denied');
+      console.warn('No FCM token available');
       return null;
     }
   } catch (error) {
-    console.error('Error getting notification token:', error);
+    console.error('Error getting FCM token:', error);
     return null;
   }
 }
 
-// Handle foreground messages
-export function onMessageListener() {
-  if (!messaging) {
+// Handle foreground messages (when app is open)
+export async function onForegroundMessage(callback: (payload: any) => void) {
+  try {
+    const messagingInstance = await initializeMessaging();
+    if (!messagingInstance) return null;
+
+    return onMessage(messagingInstance, (payload) => {
+      console.log('Foreground message received:', payload);
+      callback(payload);
+    });
+  } catch (error) {
+    console.error('Error setting up foreground message listener:', error);
     return null;
   }
-  return onMessage(messaging, (payload) => {
-    console.log('Message received:', payload);
-    // Handle foreground notification
-    return payload;
-  });
 }
 
 export default app;

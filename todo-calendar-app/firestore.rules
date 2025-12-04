@@ -1,0 +1,25 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Todos collection
+    match /todos/{todoId} {
+      allow read, write: if true;
+    }
+    
+    // Exams collection
+    match /exams/{examId} {
+      allow read, write: if true;
+    }
+    
+    // FCM Tokens collection (for Cloud Functions)
+    match /fcmTokens/{tokenId} {
+      allow read, write: if true;
+    }
+    
+    // Exam Notification Schedules collection (for Cloud Functions)
+    match /examNotificationSchedules/{scheduleId} {
+      allow read, write: if true;
+    }
+  }
+}
+

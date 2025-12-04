@@ -4,6 +4,18 @@ import router from './router';
 
 import { IonicVue } from '@ionic/vue';
 
+// Register service worker for Firebase Cloud Messaging
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', async () => {
+    try {
+      const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+      console.log('Service Worker registered:', registration);
+    } catch (error) {
+      console.warn('Service Worker registration failed:', error);
+    }
+  });
+}
+
 /* Core CSS required for Ionic components to work properly */
 import '@ionic/vue/css/core.css';
 
