@@ -83,7 +83,7 @@ const formData = ref<ExamFormData>({
   title: '',
   subject: '',
   date: props.initialDate || new Date(),
-  notificationEnabled: false
+  notificationEnabled: true // Enable notifications by default
 });
 
 const minDate = computed(() => {

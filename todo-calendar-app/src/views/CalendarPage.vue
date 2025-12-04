@@ -71,6 +71,18 @@
           </ion-button>
         </div>
 
+        <!-- Test Notification Button -->
+        <div class="test-notification-section">
+          <ion-button 
+            fill="outline" 
+            @click="testNotification"
+            class="test-notification-button"
+          >
+            <ion-icon :icon="notificationsOutline" slot="start"></ion-icon>
+            Test Notification
+          </ion-button>
+        </div>
+
         <!-- Loading State -->
         <div v-if="loading" class="loading-state">
           <ion-spinner></ion-spinner>
@@ -133,11 +145,19 @@ import {
   closeOutline,
   calendarOutline,
   chevronUpOutline,
-  chevronDownOutline
+  chevronDownOutline,
+  notificationsOutline
 } from 'ionicons/icons';
 import CalendarView from '../components/CalendarView.vue';
 import ExamForm from '../components/ExamForm.vue';
 import { getAllExams, addExam, deleteExam as deleteExamService } from '../services/examService';
+import { 
+  requestNotificationPermission, 
+  scheduleExamNotification, 
+  cancelExamNotification,
+  scheduleAllExamNotifications,
+  sendTestNotification
+} from '../services/notificationService';
 import type { Exam, ExamFormData } from '../models/Exam';
 import { toastController } from '@ionic/vue';
 
@@ -214,6 +234,17 @@ async function loadExams() {
   }
 }
 
+async function requestPermissions() {
+  try {
+    const granted = await requestNotificationPermission();
+    if (!granted) {
+      console.warn('Notification permission not granted');
+    }
+  } catch (error) {
+    console.error('Error requesting notification permissions:', error);
+  }
+}
+
 function handleDateSelected(date: Date) {
   selectedDate.value = date;
   // Open the form with the selected date
@@ -222,8 +253,23 @@ function handleDateSelected(date: Date) {
 
 async function handleSaveExam(examData: ExamFormData) {
   try {
-    await addExam(examData);
+    const examId = await addExam(examData);
     await loadExams();
+    
+    // Schedule notification if enabled
+    if (examData.notificationEnabled) {
+      // Get the newly created exam from the loaded list
+      const newExam = exams.value.find(e => e.id === examId);
+      if (newExam) {
+        try {
+          await scheduleExamNotification(newExam);
+        } catch (notifError) {
+          console.error('Error scheduling notification:', notifError);
+          // Don't fail the whole operation if notification fails
+        }
+      }
+    }
+    
     closeExamForm();
     
     const toast = await toastController.create({
@@ -247,6 +293,14 @@ async function handleSaveExam(examData: ExamFormData) {
 
 async function deleteExam(id: string) {
   try {
+    // Cancel notification before deleting
+    try {
+      await cancelExamNotification(id);
+    } catch (notifError) {
+      console.error('Error cancelling notification:', notifError);
+      // Continue with deletion even if notification cancellation fails
+    }
+    
     await deleteExamService(id);
     await loadExams();
     
@@ -278,9 +332,43 @@ function toggleCalendar() {
   calendarExpanded.value = !calendarExpanded.value;
 }
 
-onMounted(() => {
-  loadExams();
+onMounted(async () => {
+  await requestPermissions();
+  await loadExams();
+  // Schedule notifications for all existing exams
+  await syncNotifications();
 });
+
+async function syncNotifications() {
+  try {
+    // Schedule notifications for all exams that have notifications enabled
+    await scheduleAllExamNotifications(exams.value);
+  } catch (error) {
+    console.error('Error syncing notifications:', error);
+  }
+}
+
+async function testNotification() {
+  try {
+    await sendTestNotification();
+    const toast = await toastController.create({
+      message: 'Test notification sent! Check your notifications in 2 seconds.',
+      duration: 3000,
+      position: 'bottom',
+      color: 'success'
+    });
+    await toast.present();
+  } catch (error: any) {
+    console.error('Error testing notification:', error);
+    const toast = await toastController.create({
+      message: error.message || 'Failed to send test notification. Check console for details.',
+      duration: 3000,
+      position: 'bottom',
+      color: 'danger'
+    });
+    await toast.present();
+  }
+}
 </script>
 
 <style scoped>
@@ -482,6 +570,23 @@ onMounted(() => {
   padding: 20px;
   max-width: 600px;
   margin: 0 auto;
+}
+
+.test-notification-section {
+  margin-top: 24px;
+  text-align: center;
+  padding: 20px;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.test-notification-button {
+  --border-color: #007AFF;
+  --color: #007AFF;
+  --border-radius: 12px;
+  height: 44px;
+  font-weight: 500;
 }
 </style>
 
