@@ -2,34 +2,44 @@
   <ion-page>
     <ion-header :translucent="true">
       <ion-toolbar>
-        <ion-title>Todo Calendar App</ion-title>
+        <ion-title>Tasks</ion-title>
       </ion-toolbar>
     </ion-header>
 
-    <ion-content :fullscreen="true">
-      <ion-header collapse="condense">
-        <ion-toolbar>
-          <ion-title size="large">Todo Calendar App</ion-title>
-        </ion-toolbar>
-      </ion-header>
+    <ion-content :fullscreen="true" class="todo-content">
+      <div class="todo-container">
+        <!-- Add Todo Form -->
+        <AddTodoForm @add="handleAddTodo" />
 
-      <div id="container">
-        <div v-if="loading" class="loading">
+        <!-- Loading State -->
+        <div v-if="loading" class="loading-state">
           <ion-spinner></ion-spinner>
-          <p>Testing Firebase connection...</p>
+          <p>Loading tasks...</p>
         </div>
-        
-        <div v-else-if="connectionStatus === 'success'" class="success">
-          <ion-icon :icon="checkmarkCircle" size="large" color="success"></ion-icon>
-          <strong>Firebase Connected! ✅</strong>
-          <p>Your Firebase connection is working correctly.</p>
-          <p class="info">Todos: {{ todosCount }} | Exams: {{ examsCount }}</p>
+
+        <!-- Error State -->
+        <div v-else-if="error" class="error-state">
+          <ion-icon :icon="alertCircleOutline" size="large" color="medium"></ion-icon>
+          <p>{{ error }}</p>
+          <ion-button fill="outline" @click="loadTodos">Try Again</ion-button>
         </div>
-        
-        <div v-else-if="connectionStatus === 'error'" class="error">
-          <ion-icon :icon="closeCircle" size="large" color="danger"></ion-icon>
-          <strong>Connection Error</strong>
-          <p>{{ errorMessage }}</p>
+
+        <!-- Empty State -->
+        <div v-else-if="todos.length === 0" class="empty-state">
+          <ion-icon :icon="checkmarkDoneOutline" size="large" color="medium"></ion-icon>
+          <h2>No tasks yet</h2>
+          <p>Add a task above to get started</p>
+        </div>
+
+        <!-- Todo List -->
+        <div v-else class="todo-list">
+          <TodoItem
+            v-for="todo in todos"
+            :key="todo.id"
+            :todo="todo"
+            @toggle="handleToggleTodo"
+            @delete="handleDeleteTodo"
+          />
         </div>
       </div>
     </ion-content>
@@ -38,88 +48,178 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { IonContent, IonHeader, IonPage, IonTitle, IonToolbar, IonSpinner, IonIcon } from '@ionic/vue';
-import { checkmarkCircle, closeCircle } from 'ionicons/icons';
-import { getAllTodos } from '../services/todoService';
-import { getAllExams } from '../services/examService';
+import { 
+  IonPage, 
+  IonHeader, 
+  IonToolbar, 
+  IonTitle, 
+  IonContent, 
+  IonSpinner, 
+  IonIcon, 
+  IonButton,
+  toastController 
+} from '@ionic/vue';
+import { alertCircleOutline, checkmarkDoneOutline } from 'ionicons/icons';
+import TodoItem from '../components/TodoItem.vue';
+import AddTodoForm from '../components/AddTodoForm.vue';
+import { getAllTodos, addTodo, toggleTodoComplete, deleteTodo } from '../services/todoService';
+import type { Todo } from '../models/Todo';
 
+const todos = ref<Todo[]>([]);
 const loading = ref(true);
-const connectionStatus = ref<'idle' | 'success' | 'error'>('idle');
-const errorMessage = ref('');
-const todosCount = ref(0);
-const examsCount = ref(0);
+const error = ref('');
 
-async function testFirebaseConnection() {
+async function loadTodos() {
   try {
     loading.value = true;
-    connectionStatus.value = 'idle';
-    
-    // Test reading from Firestore
-    const todos = await getAllTodos();
-    const exams = await getAllExams();
-    
-    todosCount.value = todos.length;
-    examsCount.value = exams.length;
-    
-    connectionStatus.value = 'success';
-    console.log('Firebase connection successful!');
-    console.log(`Found ${todos.length} todos and ${exams.length} exams`);
-  } catch (error: any) {
-    connectionStatus.value = 'error';
-    errorMessage.value = error.message || 'Failed to connect to Firebase';
-    console.error('Firebase connection error:', error);
+    error.value = '';
+    todos.value = await getAllTodos();
+  } catch (err: any) {
+    error.value = err.message || 'Failed to load tasks';
+    console.error('Error loading todos:', err);
   } finally {
     loading.value = false;
   }
 }
 
+async function handleAddTodo(title: string) {
+  try {
+    await addTodo({ title });
+    await loadTodos();
+    
+    const toast = await toastController.create({
+      message: 'Task added',
+      duration: 1500,
+      position: 'bottom',
+      color: 'success'
+    });
+    await toast.present();
+  } catch (err: any) {
+    const toast = await toastController.create({
+      message: 'Failed to add task',
+      duration: 2000,
+      position: 'bottom',
+      color: 'danger'
+    });
+    await toast.present();
+    console.error('Error adding todo:', err);
+  }
+}
+
+async function handleToggleTodo(id: string) {
+  try {
+    const todo = todos.value.find(t => t.id === id);
+    if (todo) {
+      await toggleTodoComplete(id, !todo.completed);
+      await loadTodos();
+    }
+  } catch (err: any) {
+    console.error('Error toggling todo:', err);
+    const toast = await toastController.create({
+      message: 'Failed to update task',
+      duration: 2000,
+      position: 'bottom',
+      color: 'danger'
+    });
+    await toast.present();
+  }
+}
+
+async function handleDeleteTodo(id: string) {
+  try {
+    await deleteTodo(id);
+    await loadTodos();
+    
+    const toast = await toastController.create({
+      message: 'Task deleted',
+      duration: 1500,
+      position: 'bottom',
+      color: 'success'
+    });
+    await toast.present();
+  } catch (err: any) {
+    console.error('Error deleting todo:', err);
+    const toast = await toastController.create({
+      message: 'Failed to delete task',
+      duration: 2000,
+      position: 'bottom',
+      color: 'danger'
+    });
+    await toast.present();
+  }
+}
+
 onMounted(() => {
-  testFirebaseConnection();
+  loadTodos();
 });
 </script>
 
 <style scoped>
-#container {
-  text-align: center;
-  padding: 20px;
+.todo-content {
+  --background: #f5f5f7;
+}
+
+.todo-container {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.loading-state,
+.error-state,
+.empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 100%;
+  padding: 60px 20px;
+  text-align: center;
 }
 
-.loading, .success, .error {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-}
-
-.loading ion-spinner {
+.loading-state ion-spinner {
   margin-bottom: 16px;
 }
 
-.success ion-icon, .error ion-icon {
-  margin-bottom: 8px;
-}
-
-#container strong {
-  font-size: 20px;
-  line-height: 26px;
-  margin-top: 8px;
-}
-
-#container p {
+.loading-state p,
+.error-state p,
+.empty-state p {
+  color: #86868b;
   font-size: 16px;
-  line-height: 22px;
-  color: #8c8c8c;
-  margin: 4px 0;
+  margin-top: 12px;
 }
 
-.info {
-  margin-top: 16px;
-  font-size: 14px;
-  color: #666;
+.empty-state h2 {
+  font-size: 22px;
+  font-weight: 600;
+  color: #1d1d1f;
+  margin: 16px 0 8px 0;
+}
+
+.error-state ion-icon,
+.empty-state ion-icon {
+  margin-bottom: 8px;
+  opacity: 0.6;
+}
+
+.todo-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Smooth animations */
+.todo-list > * {
+  animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 </style>

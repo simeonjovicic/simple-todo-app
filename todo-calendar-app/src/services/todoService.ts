@@ -57,13 +57,17 @@ export async function getAllTodos(): Promise<Todo[]> {
 // Add a new todo
 export async function addTodo(todoData: TodoFormData): Promise<string> {
   try {
-    const newTodo = {
+    const newTodo: any = {
       title: todoData.title,
       description: todoData.description || '',
       completed: false,
       createdAt: Timestamp.now(),
-      dueDate: dateToTimestamp(todoData.dueDate),
     };
+
+    // Only add dueDate if it exists (Firestore doesn't accept undefined)
+    if (todoData.dueDate) {
+      newTodo.dueDate = dateToTimestamp(todoData.dueDate);
+    }
 
     const docRef = await addDoc(collection(db, TODOS_COLLECTION), newTodo);
     return docRef.id;
