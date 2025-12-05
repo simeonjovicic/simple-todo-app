@@ -371,6 +371,10 @@ onUnmounted(() => {
   --background: #f5f5f7;
 }
 
+.dark .home-content {
+  --background: #000000;
+}
+
 .home-container {
   max-width: 600px;
   margin: 0 auto;
